@@ -55,7 +55,7 @@ def aal2_atlas_add_cortical_regions(aal2_atlas):
     return aal2_atlas
 
 
-def plot_graph_circos(graph, sc_threshold=0.1):
+def plot_graph_circos(graph, sc_threshold=0.07):
     # Some parts of the code from:
     # https://github.com/multinetlab-amsterdam/network_TDA_tutorial
     G = graph.copy()
@@ -67,18 +67,26 @@ def plot_graph_circos(graph, sc_threshold=0.1):
 
     atlas = atlases.AutomatedAnatomicalParcellation2()
     atlas = aal2_atlas_add_cortical_regions(atlas)
+    G = nx.relabel_nodes(G, lambda x: atlas.names('cortex')[x])
     sublist = {}
-    for n, group in enumerate(list(CORTICAL_REGIONS.keys())):
+    order = {}
+    n = 0
+    for group in list(CORTICAL_REGIONS.keys()):
         for i in atlas.names(group=group):
             sublist[i] = group
-    G = nx.relabel_nodes(G, lambda x: atlas.names('cortex')[x])
+            if i[-1] == 'L':
+                order[i] = n
+            else:
+                order[i] = n + 1
+        n += 2
 
     nx.set_node_attributes(G, sublist, 'cortical_region')
-
+    nx.set_node_attributes(G, order, 'node_order')
+    # https://nxviz.readthedocs.io/en/latest/modules.html
     circ = CircosPlot(
         G, figsize=(15, 15), node_labels=True, node_label_layout='rotation',
         edge_color='weight', edge_width='weight', fontsize=10,
-        node_order='cortical_region', nodeprops={"radius": 1},
+        node_order='node_order', nodeprops={"radius": 1},
         group_label_offset=5, node_color='cortical_region', group_legend=True
         )
 
@@ -101,9 +109,140 @@ def plot_graph_circos(graph, sc_threshold=0.1):
     plt.tight_layout()
     return circ
 
-def make_graph():
-    pass
 
-def graph_measures():
-    pass
+def make_graph(Cmat):
+    G = nx.from_numpy_matrix(Cmat)
+    G.remove_edges_from(list(nx.selfloop_edges(G)))
+    return G
 
+
+def graph_measures(G, Dmat=None):
+
+    graph_measures = {}
+
+    # -------------- Degree -------------- #
+    strength = G.degree(weight='weight')
+    nx.set_node_attributes(G, dict(strength), 'strength')
+
+    # Normalized node strength values 1/N-1
+    normstrenghts = {node: val * 1/(len(G.nodes)-1)
+                     for (node, val) in strength}
+    nx.set_node_attributes(G, normstrenghts, 'strengthnorm')
+
+    # Computing the mean degree of the network
+    normstrengthlist = np.array([val * 1/(len(G.nodes)-1)
+                                 for (node, val) in strength])
+    mean_degree = np.sum(normstrengthlist)/len(G.nodes)
+
+    graph_measures['mean_degree'] = mean_degree
+    graph_measures['degree'] = normstrengthlist
+
+    # -------------- Centrality -------------- #
+    # Closeness Centrality
+    # Distance is an inverse of correlation
+    # IDEA: use Dmat instead
+    if isinstance(Dmat, np.ndarray):
+        G_distance_dict = {(e1, e2): Dmat[e1, e2]
+                           for e1, e2 in G.edges()}
+    else:
+        G_distance_dict = {(e1, e2): 1 / abs(weight)
+                           for e1, e2, weight in G.edges(data='weight')}
+
+    nx.set_edge_attributes(G, G_distance_dict, 'distance')
+    closeness = nx.closeness_centrality(G, distance='distance')
+    nx.set_node_attributes(G, closeness, 'closecent')
+    graph_measures['closeness'] = list(closeness.values())
+
+    # Betweenness Centrality
+    betweenness = nx.betweenness_centrality(G, weight='distance',
+                                            normalized=False)
+    nx.set_node_attributes(G, betweenness, 'betweenness_centrality')
+    graph_measures['betweenness'] = list(betweenness.values())
+
+    # Eigenvector Centrality
+    # eigen = nx.eigenvector_centrality(G, weight='weight')
+    # nx.set_node_attributes(G, eigen, 'eigen')
+    # graph_measures['eigenvector_centrality'] = list(eigen.values())
+
+    # -------------- Path Length -------------- #
+    # Average shortest path length
+    avg_shorterst_path = nx.average_shortest_path_length(G, weight='distance')
+    graph_measures['mean_shortest_path'] = avg_shorterst_path
+
+    # TODO: maybe add more measures
+
+    # -------------- Assortativity -------------- #
+    # Average degree of the neighborhood
+    average_neighbor_degree = nx.average_neighbor_degree(G, weight='weight')
+    nx.set_node_attributes(G, average_neighbor_degree, 'neighbor_degree')
+    graph_measures['neighbor_degree'] = list(average_neighbor_degree.values())
+
+    # -------------- Clustering Coefficient -------------- #
+    clustering = nx.clustering(G, weight='weight')
+    nx.set_node_attributes(G, clustering, 'clustering_coefficient')
+    graph_measures['clustering_coefficient'] = list(clustering.values())
+    graph_measures['mean_clustering_coefficient'] =\
+        nx.average_clustering(G, weight='weight')
+
+    # -------------- Minimum Spanning Tree -------------- #
+    # backbone of a network
+    GMST = nx.minimum_spanning_tree(G, weight='distance')
+    backbone = nx.to_numpy_array(GMST)
+    graph_measures['backbone'] = backbone
+
+    # -------------- Small-world -------------- #
+    # FIXME: too slow...
+    # graph_measures['omega'] = nx.omega(G, seed=0)
+    # graph_measures['omega'] = nx.sigma(G, seed=0)
+
+    return G, graph_measures
+
+
+def z_scores(df):
+    m_dist = ['degree', 'closeness', 'betweenness', 'neighbor_degree',
+              'clustering_coefficient']
+    m_point = ['mean_degree', 'mean_shortest_path',
+               'mean_clustering_coefficient']
+
+    n_subjects = df.shape[0]
+    df.loc[:, 'subject'] = df.index
+    for m in m_dist:
+        value = np.array([df.loc[i, m] for i in range(n_subjects)])
+        mean = value.mean(axis=1)
+        std = value.std(axis=1).mean()
+        df.loc[:, f'{m}_z'] = (mean - mean.mean()) / std
+
+    for m in m_point:
+        mean = df.loc[:, m].mean()
+        std = df.loc[:, m].std()
+        df.loc[:, f'{m}_z'] = (df.loc[:, m] - mean) / std
+
+    all_values = ['subject'] + [f'{m}_z' for m in m_point + m_dist]
+    return df.loc[:, all_values]
+
+
+def similarity_between_subjects(df):
+    m_dist = ['degree', 'closeness', 'betweenness', 'neighbor_degree',
+              'clustering_coefficient']
+    mats = ['Cmat', 'Dmat', 'backbone']
+
+    n_subjects = df.shape[0]
+    df.loc[:, 'subject'] = df.index
+    for m in m_dist:
+        value = np.array([df.loc[i, m] for i in range(n_subjects)])
+        for s in range(n_subjects):
+            corr = np.corrcoef(value[0, :], value[s, :])[0, 1]
+            df.loc[s, f'{m}_corr'] = corr
+    for m in mats:
+        for s in range(n_subjects):
+            corr = np.corrcoef(df.loc[0, m].flatten(), 
+                               df.loc[s, m].flatten())[0, 1]
+            df.loc[s, f'{m}_corr'] = corr
+    all_values = ['subject'] + [f'{m}_corr' for m in mats + m_dist]
+    return df.loc[:, all_values]
+
+
+if __name__ == '__main__':
+    from neurolib.utils.loadData import Dataset
+    ds = Dataset("gw")
+    G = make_graph(ds.Cmats[1])
