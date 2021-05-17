@@ -140,7 +140,7 @@ def graph_measures(G, Dmat=None):
     # -------------- Centrality -------------- #
     # Closeness Centrality
     # Distance is an inverse of correlation
-    # IDEA: use Dmat instead
+    # IDEA: use Dmat instead of 1 / abs(weight) ???
     if isinstance(Dmat, np.ndarray):
         G_distance_dict = {(e1, e2): Dmat[e1, e2]
                            for e1, e2 in G.edges()}
@@ -155,7 +155,7 @@ def graph_measures(G, Dmat=None):
 
     # Betweenness Centrality
     betweenness = nx.betweenness_centrality(G, weight='distance',
-                                            normalized=False)
+                                            normalized=True)
     nx.set_node_attributes(G, betweenness, 'betweenness_centrality')
     graph_measures['betweenness'] = list(betweenness.values())
 
