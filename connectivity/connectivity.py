@@ -199,8 +199,8 @@ def graph_measures(G, Dmat=None):
 
 
 def z_scores(df):
-    m_dist = ['degree', 'closeness', 'betweenness', 'neighbor_degree',
-              'clustering_coefficient']
+    # 'degree', 'clustering_coefficient'
+    m_dist = ['closeness', 'betweenness', 'neighbor_degree'] 
     m_point = ['mean_degree', 'mean_shortest_path',
                'mean_clustering_coefficient']
 
@@ -210,14 +210,15 @@ def z_scores(df):
         value = np.array([df.loc[i, m] for i in range(n_subjects)])
         mean = value.mean(axis=1)
         std = value.std(axis=1).mean()
-        df.loc[:, f'{m}_z'] = (mean - mean.mean()) / std
+        df.loc[:, f'mean_{m}_z'] = (mean - mean.mean()) / std
 
     for m in m_point:
         mean = df.loc[:, m].mean()
         std = df.loc[:, m].std()
         df.loc[:, f'{m}_z'] = (df.loc[:, m] - mean) / std
 
-    all_values = ['subject'] + [f'{m}_z' for m in m_point + m_dist]
+    all_values = (['subject'] + [f'{m}_z' for m in m_point]
+                  + [f'mean_{m}_z' for m in m_dist])
     return df.loc[:, all_values]
 
 
