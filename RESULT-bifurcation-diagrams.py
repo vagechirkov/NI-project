@@ -34,6 +34,8 @@ from neurolib.optimize.exploration import BoxSearch
 from neurolib.utils.loadData import Dataset
 from neurolib.utils.parameterSpace import ParameterSpace
 from neurolib.utils.stimulus import construct_stimulus
+from connectivity.coonectivity_dynamics import fast_kuramoto
+
 
 logger = logging.getLogger()
 warnings.filterwarnings("ignore")
@@ -64,7 +66,7 @@ def evaluateSimulation(traj):
                                        dt=model.params.dt)
     model.params['ext_exc_current'] = rect_stimulus * 5.0
 
-    model.run()
+    model.run(bold=True)
 
     # up down difference
     state_length = 2000
@@ -95,11 +97,27 @@ def evaluateSimulation(traj):
         maxfr=40, spectrum_windowsize=5)
     domfr = model_frs[np.argmax(model_pwrs)]
 
+    # Kuramoto
+    # kur = func.kuramoto(model.rates_exc)
+    kur = fast_kuramoto(model.rates_exc)
+    if isinstance(kur, int):
+        kur_mean = 0
+        kur_std = 0
+    else:
+        kur_mean = kur.mean()
+        kur_std = kur.std()
+
+    # FC
+    fc = func.fc(model.BOLD.BOLD[:, 5:])
+
     result = {
         "max_output": max_output,
         "max_amp_output": max_amp_output,
         "domfr": domfr,
-        "up_down_difference": up_down_difference
+        "up_down_difference": up_down_difference,
+        "mean_kuramoto": kur_mean,
+        "std_kuramoto": kur_std,
+        "BOLD_FC": fc
     }
     search.saveToPypet(result, traj)
     return
@@ -108,7 +126,7 @@ def evaluateSimulation(traj):
 ds = Dataset("gw")
 model = ALNModel(Cmat=ds.Cmats[0], Dmat=ds.Dmats[0])
 model.params['dt'] = 0.1
-model.params['duration'] = 20 * 1000  # ms
+model.params['duration'] = 2 * 60 * 1000  # ms
 
 # add custom parameter for downsampling results
 # 10 ms sampling steps for saving data, should be multiple of dt
@@ -120,10 +138,16 @@ model.params["b"] = 20.0
 model.params["Ke_gl"] = 300.0
 model.params["signalV"] = 80.0
 
+# Sleep model from newest evolution October 2020
+model.params["b"] = 3.2021806735984186
+model.params["tauA"] = 4765.3385276559875
+model.params["sigma_ou"] = 0.36802952978628106
+model.params["Ke_gl"] = 265.48075753153
+model.params["b"] += 0.5
 
-parameters = ParameterSpace({"mue_ext_mean": np.linspace(0.0, 4, 51),
-                             "mui_ext_mean": np.linspace(0.0, 4, 51),
-                             "b": [20.0]
+
+parameters = ParameterSpace({"mue_ext_mean": np.linspace(0.0, 4, 2),
+                             "mui_ext_mean": np.linspace(0.0, 4, 2)
                              })
 search = BoxSearch(evalFunction=evaluateSimulation, model=model,
                    parameterSpace=parameters,
@@ -131,7 +155,7 @@ search = BoxSearch(evalFunction=evaluateSimulation, model=model,
 
 
 search.run()
-fname = "/Users/valery/NEUROLIB/neurolib/data/hdf/exploration-8.0-brain.hdf"
+fname = "/Users/valery/NEUROLIB/NI-project/data/hdf/exploration-8.0-brain.hdf"
 search.loadResults(filename=fname, all=False)
 
 
@@ -139,7 +163,6 @@ plot_key_label = "Max. $r_E$ [Hz]"
 eu.plotExplorationResults(search.dfResults,
                           par1=['mue_ext_mean', 'Input to E [nA]'],
                           par2=['mui_ext_mean', 'Input to I [nA]'],
-                          by=['b'],
                           plot_key='max_output',
                           plot_clim=[0.0, 80.0],
                           nan_to_zero=False,

@@ -9,51 +9,6 @@ import matplotlib.pyplot as plt
 from numba import jit
 
 
-def kuramoto(traces, smoothing=0.0, dt=0.1, debug=False,
-             peakrange=[0.1, 0.2]):
-    phases = []
-    nTraces = len(traces)
-    peakslist = []
-    for n in range(nTraces):
-        tList = np.dot(range(len(traces[n])), dt/1000)
-        a = traces[n]
-
-        # find peaks
-        if smoothing > 0:
-            # smooth data
-            a = ndimage.filters.gaussian_filter(traces[n], smoothing)
-        maximalist = signal.find_peaks_cwt(a, np.arange(peakrange[0],
-                                                        peakrange[1]))
-        # maximalist = signal.find_peaks(a, distance=20, prominence=2)[0]
-        maximalist = np.append(maximalist, len(traces[n])-1).astype(int)
-        if debug:
-            peakslist.append(maximalist)
-
-        if len(maximalist) > 1:
-            phases.append([])
-            lastMax = 0
-            for m in maximalist:
-                for t in range(lastMax, m):
-                    phi = 2 * np.pi * float(t - lastMax) / float(m - lastMax)
-                    phases[n].append(phi)
-                lastMax = m
-            phases[n].append(2 * np.pi)
-        else:
-            return 0
-    # determine kuramoto order paramter
-    kuramoto = []
-    for t in range(len(tList)):
-        R = 1j*0
-        for n in range(nTraces):
-            R += np.exp(1j * phases[n][t])
-        R /= nTraces
-        kuramoto.append(np.absolute(R))
-    if debug:
-        return kuramoto, phases, peakslist, traces
-    else:
-        return kuramoto
-
-
 def plot_kuramoto_example(traces):
     kur, phases, peakslist, traces = fast_kuramoto(traces, debug=True)
     plt.figure(figsize=(20, 15))
@@ -81,7 +36,7 @@ def plot_kuramoto_example(traces):
     plt.show()
 
 
-def fast_kuramoto(traces, smoothing=5.0, dt=0.1, debug=False):
+def fast_kuramoto(traces, smoothing=2.0, dt=0.1, debug=False):
     nTraces, nTimes = traces.shape
     peakslist = []
     phases = np.empty_like(traces)
