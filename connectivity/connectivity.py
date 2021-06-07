@@ -111,10 +111,10 @@ def plot_graph_circos(graph, sc_threshold=0.07):
 
 
 def make_graph(Cmat):
-    G = nx.from_numpy_matrix(Cmat)
+    G = nx.from_numpy_matrix(sparsify(make_symmetric(Cmat), threshold=0.01))
     G.remove_edges_from(list(nx.selfloop_edges(G)))
+    G.graph['matrix'] = Cmat
     return G
-
 
 def graph_measures(G, Dmat=None):
 
@@ -177,6 +177,11 @@ def graph_measures(G, Dmat=None):
     nx.set_node_attributes(G, average_neighbor_degree, 'neighbor_degree')
     graph_measures['neighbor_degree'] = list(average_neighbor_degree.values())
 
+	# ------- Avg Neighbor Degree (2nd try) ----- #
+    avg_nb_deg = compute_avg_neighborhood_degree(G.graph['matrix'])
+    nx.set_node_attributes(G, avg_nb_deg, 'neighbor_degree_new')
+    graph_measures['neighbor_degree_new'] = list(avg_nb_deg)
+	
     # -------------- Clustering Coefficient -------------- #
     clustering = nx.clustering(G, weight='weight')
     nx.set_node_attributes(G, clustering, 'clustering_coefficient')
@@ -192,17 +197,46 @@ def graph_measures(G, Dmat=None):
 
     # -------------- Small-world -------------- #
     # FIXME: too slow...
-    # graph_measures['omega'] = nx.omega(G, seed=0)
-    # graph_measures['omega'] = nx.sigma(G, seed=0)
+    #graph_measures['omega'] = nx.omega(G, seed=0, niter=1)
+    #graph_measures['sigma'] = nx.sigma(G, seed=0, niter=1)
 
     return G, graph_measures
 
+def neighborhoods(adj, epsilon = 0.001):
+    N = np.array(adj > epsilon, dtype=int)
+    return N
 
+def normalize_neighborhoods(neighborhoods):
+    N = neighborhoods / np.sum(neighborhoods, axis=0)
+    return N
+
+def is_symmetric(A, epsilon=0.1):
+    diff=A - A.T
+    asymmetry = np.sum(np.abs(diff)) 
+    return asymmetry < epsilon, asymmetry, np.max(np.abs(diff)), np.mean(np.abs(diff))
+
+def make_symmetric(A):
+    S = (A + A.T)/2
+    assert(is_symmetric(S))
+    return S
+
+def sparsify(A,threshold=0.01):
+	A[A < threshold] = 0.0
+	return A
+
+def compute_avg_neighborhood_degree(A):
+    degrees = np.sum(A, axis=0)
+    N = neighborhoods(A)
+    N = normalize_neighborhoods(N)
+    avg_nb_deg = N.dot(degrees)
+    # assert(np.mean(degrees) == np.mean(avg_nb_deg)) ## not always true - should it?
+    return avg_nb_deg
+	
 def z_scores(df):
     # 'degree', 'clustering_coefficient'
-    m_dist = ['closeness', 'betweenness', 'neighbor_degree'] 
+    m_dist = ['closeness', 'betweenness', 'neighbor_degree', 'neighbor_degree_new'] 
     m_point = ['mean_degree', 'mean_shortest_path',
-               'mean_clustering_coefficient']
+               'mean_clustering_coefficient']#, 'omega', 'sigma']
 
     n_subjects = df.shape[0]
     df.loc[:, 'subject'] = df.index
@@ -223,10 +257,11 @@ def z_scores(df):
 
 
 def similarity_between_subjects(df):
-    m_dist = ['degree', 'closeness', 'betweenness', 'neighbor_degree',
+    m_dist = ['degree', 'closeness', 'betweenness', 'neighbor_degree', 'neighbor_degree_new',
               'clustering_coefficient']
     mats = ['Cmat', 'Dmat', 'backbone']
-
+    #graph_properties = ['omega', 'sigma']
+    
     n_subjects = df.shape[0]
     df.loc[:, 'subject'] = df.index
     for m in m_dist:
@@ -239,7 +274,12 @@ def similarity_between_subjects(df):
             corr = np.corrcoef(df.loc[0, m].flatten(), 
                                df.loc[s, m].flatten())[0, 1]
             df.loc[s, f'{m}_corr'] = corr
-    all_values = ['subject'] + [f'{m}_corr' for m in mats + m_dist]
+    #for m in graph_properties:
+    #    value = np.array([df.loc[i, m] for i in range(n_subjects)])
+    #    for s in range(n_subjects):
+    #        corr = np.corrcoef(value[0], value[s])[0, 1]
+    #        df.loc[s, f'{m}_corr'] = corr
+    all_values = ['subject'] + [f'{m}_corr' for m in mats + m_dist]# + graph_properties]
     return df.loc[:, all_values]
 
 
