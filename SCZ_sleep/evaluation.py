@@ -8,6 +8,7 @@ from neurolib.optimize.exploration import BoxSearch
 from neurolib.utils.stimulus import construct_stimulus
 import brainplot as bp
 
+
 def param_search(model, parameters, fname='scz_sleep.hdf'):
 
     def evaluateSimulation(traj):
@@ -69,9 +70,10 @@ def param_search(model, parameters, fname='scz_sleep.hdf'):
             "normalized_down_lengths": normalized_down_lengths,
             "normalized_down_lengths_mean": np.mean(normalized_down_lengths),
             "n_local_waves": n_local_waves,
+            "perc_local_waves": n_local_waves / (n_local_waves+n_global_waves),
             "n_global_waves": n_global_waves,
-            "loca_waves_isi": loca_waves_isi,
-            "global_waves_isi": global_waves_isi
+            "local_waves_isi": np.mean(loca_waves_isi),
+            "global_waves_isi": np.mean(global_waves_isi)
         }
         search.saveToPypet(result, traj)
         return
@@ -100,7 +102,7 @@ def sws_analysis(output, model, min_distance=1000):
     normalized_down_lengths = model.params.duration / 1000 - len_states
     # to percent
     normalized_down_lengths = (normalized_down_lengths /
-                              (model.params.duration / 1000) * 100)
+                               (model.params.duration / 1000) * 100)
 
     filtered_involvement = scipy.ndimage.gaussian_filter1d(involvement, 2000)
     peaks = scipy.signal.find_peaks(
