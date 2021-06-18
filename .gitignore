@@ -131,5 +131,10 @@ dmypy.json
 
 *.json
 
+*/data
+*/logs
 /data
+/logs
 .DS_Store
+connectivity/brainplot.py
+SCZ_sleep/brainplot.py
