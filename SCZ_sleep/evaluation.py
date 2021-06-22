@@ -9,7 +9,7 @@ from neurolib.utils.stimulus import construct_stimulus
 import brainplot as bp
 
 
-def param_search(model, parameters, fname='scz_sleep.hdf'):
+def param_search(model, parameters, fname='scz_sleep.hdf', run=True):
 
     def evaluateSimulation(traj):
         model = search.getModelFromTraj(traj)
@@ -70,7 +70,7 @@ def param_search(model, parameters, fname='scz_sleep.hdf'):
             "normalized_down_lengths": normalized_down_lengths,
             "normalized_down_lengths_mean": np.mean(normalized_down_lengths),
             "n_local_waves": n_local_waves,
-            "perc_local_waves": n_local_waves / (n_local_waves+n_global_waves),
+            "perc_local_waves": n_local_waves / (n_local_waves+n_global_waves +1),
             "n_global_waves": n_global_waves,
             "local_waves_isi": np.mean(loca_waves_isi),
             "global_waves_isi": np.mean(global_waves_isi)
@@ -81,7 +81,8 @@ def param_search(model, parameters, fname='scz_sleep.hdf'):
     search = BoxSearch(evalFunction=evaluateSimulation, model=model,
                        parameterSpace=parameters,
                        filename=fname)
-    search.run()
+    if run:
+        search.run()
     return search
 
 
