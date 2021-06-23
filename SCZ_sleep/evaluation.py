@@ -8,6 +8,27 @@ from neurolib.optimize.exploration import BoxSearch
 from neurolib.utils.stimulus import construct_stimulus
 import brainplot as bp
 
+# https://doi.org/10.1016/j.neuroimage.2015.07.075 Table 2
+# number corresponds to AAL2 labels indices
+CORTICAL_REGIONS = {
+    'central_region': [1, 2, 61, 62, 13, 14],
+    'frontal_lobe': [3, 4, 5, 6, 7, 8, 9, 10, 19, 20, 15, 16, 73, 74,
+                     11, 12, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28,
+                     29, 30, 31, 32],
+    'temporal_lobe': {
+        'Lateral surface': [83, 84, 85, 86, 89, 90, 93, 94]
+        },
+    'parietal_lobe': {
+        'Lateral surface': [63, 64, 65, 66, 67, 68, 69, 70],
+        'Medial surface': [71, 72],
+        },
+    'occipital_lobe': {
+        'Lateral surface': [53, 54, 55, 56, 57, 58],
+        'Medial and inferior surfaces': [47, 48, 49, 50, 51, 52, 59, 60],
+        },
+    'limbic_lobe': [87, 88, 91, 92, 35, 36, 37, 38, 39, 40, 33, 34]
+    }
+
 
 def param_search(model, parameters, fname='scz_sleep.hdf', run=True):
 
@@ -58,9 +79,17 @@ def param_search(model, parameters, fname='scz_sleep.hdf', run=True):
             maxfr=40, spectrum_windowsize=5)
         domfr = model_frs[np.argmax(model_pwrs)]
 
-        # -------- SWS analysis --------
+        # -------- SWS analysis all nodes --------
         (normalized_down_lengths, n_local_waves, n_global_waves,
          loca_waves_isi, global_waves_isi) = sws_analysis(model.output, model)
+
+        # -------- SWS analysis frontal nodes --------
+        frontal_lobe_nodes = [i - 1 for i in CORTICAL_REGIONS["frontal_lobe"]]
+        (frontal_normalized_down_lengths, frontal_n_local_waves,
+         frontal_n_global_waves,
+         frontal_loca_waves_isi,
+         frontal_global_waves_isi) = sws_analysis(
+             model.output[frontal_lobe_nodes, :], model)
 
         result = {
             "max_output": max_output,
@@ -69,11 +98,32 @@ def param_search(model, parameters, fname='scz_sleep.hdf', run=True):
             "up_down_difference": up_down_difference,
             "normalized_down_lengths": normalized_down_lengths,
             "normalized_down_lengths_mean": np.mean(normalized_down_lengths),
+            "normalized_up_lengths_mean":
+                100 - np.mean(normalized_down_lengths),
             "n_local_waves": n_local_waves,
-            "perc_local_waves": n_local_waves / (n_local_waves+n_global_waves +1),
+            "perc_local_waves": (n_local_waves * 100
+                                 / (n_local_waves + n_global_waves + 1)),
             "n_global_waves": n_global_waves,
+            "all_SWS": n_local_waves+n_global_waves,
+            "SWS_per_min": (n_local_waves+n_global_waves) * 3,
             "local_waves_isi": np.mean(loca_waves_isi),
-            "global_waves_isi": np.mean(global_waves_isi)
+            "global_waves_isi": np.mean(global_waves_isi),
+            "frontal_normalized_down_lengths":
+                frontal_normalized_down_lengths,
+            "frontal_normalized_down_lengths_mean":
+                np.mean(frontal_normalized_down_lengths),
+            "frontalnormalized_up_lengths_mean":
+                100 - np.mean(frontal_normalized_down_lengths),
+            "frontal_n_local_waves": frontal_n_local_waves,
+            "frontal_perc_local_waves":
+                (frontal_n_local_waves * 100 /
+                 (frontal_n_local_waves + frontal_n_global_waves + 1)),
+            "frontal_all_SWS": frontal_n_local_waves + frontal_n_global_waves,
+            "frontal_SWS_per_min": (frontal_n_local_waves +
+                                    frontal_n_global_waves) * 3,
+            "frontal_n_global_waves": frontal_n_global_waves,
+            "frontal_local_waves_isi": np.mean(frontal_loca_waves_isi),
+            "frontal_global_waves_isi": np.mean(frontal_global_waves_isi)
         }
         search.saveToPypet(result, traj)
         return
