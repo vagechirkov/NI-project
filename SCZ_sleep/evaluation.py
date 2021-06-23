@@ -36,6 +36,39 @@ def param_search(model, parameters, fname='scz_sleep.hdf', run=True):
         model = search.getModelFromTraj(traj)
         # initiate the model with random initial contitions
         model.randomICs()
+        if hasattr(model, "model.j_values_list"):
+            jei = model.params["Jei_max"]
+            jie = model.params["Jie_max"]
+            jii = model.params["Jii_max"]
+            if [jie, jei, jii] not in model.j_values_list:
+                result = {
+                    "max_output": np.nan,
+                    "max_amp_output": np.nan,
+                    "domfr": np.nan,
+                    "up_down_difference": np.nan,
+                    "normalized_down_lengths": np.nan,
+                    "normalized_down_lengths_mean": np.nan,
+                    "normalized_up_lengths_mean": np.nan,
+                    "n_local_waves": np.nan,
+                    "perc_local_waves": np.nan,
+                    "n_global_waves": np.nan,
+                    "all_SWS": np.nan,
+                    "SWS_per_min": np.nan,
+                    "local_waves_isi": np.nan,
+                    "global_waves_isi": np.nan,
+                    "frontal_normalized_down_lengths": np.nan,
+                    "frontal_normalized_down_lengths_mean": np.nan,
+                    "frontalnormalized_up_lengths_mean": np.nan,
+                    "frontal_n_local_waves": np.nan,
+                    "frontal_perc_local_waves": np.nan,
+                    "frontal_all_SWS": np.nan,
+                    "frontal_SWS_per_min": np.nan,
+                    "frontal_n_global_waves": np.nan,
+                    "frontal_local_waves_isi": np.nan,
+                    "frontal_global_waves_isi": np.nan
+                }
+                search.saveToPypet(result, traj)
+                return
         defaultDuration = model.params['duration']
 
         # -------- stage wise simulation --------
