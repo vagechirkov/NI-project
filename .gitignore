@@ -138,3 +138,5 @@ dmypy.json
 .DS_Store
 connectivity/brainplot.py
 SCZ_sleep/brainplot.py
+*.csv
+*.gif
