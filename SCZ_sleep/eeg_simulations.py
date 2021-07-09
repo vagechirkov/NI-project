@@ -44,7 +44,7 @@ def simulate_raw_eeg(aal2_atlas, cortex, model_data):
         node_verts[i] = np.sort(v)
 
     data = np.vstack(node_data)
-    data = 1e-9 * data / data.max()
+    data = 1e-7 * data / data.max()  # scaled by 1e+06 to plot in µV
 
     # Create SourceEstimate object
     stc = mne.SourceEstimate(
@@ -63,5 +63,38 @@ def simulate_raw_eeg(aal2_atlas, cortex, model_data):
     cov['data'] *= (20. / snr) ** 2
 
     raw = simulate_raw(info, stc, forward=fwd)
-    add_noise(raw, cov, iir_filter=[4, -4, 0.8], random_state=42)
-    return raw
+    # add_noise(raw, cov, iir_filter=[4, -4, 0.8], random_state=42)
+    return raw, stc
+
+
+def find_peaks(model, output, min_distance=1000):
+    import brainplot as bp
+    import scipy
+
+    def filter_peaks(peaks, inv, t_max, t_min=0):
+        return [p for p in peaks if (inv[p] > t_min and inv[p] <= t_max)]
+
+    def peak_isi(peaks):
+        return np.diff(peaks)/1000*model.params.dt
+
+    model.outputs[model.default_output] = output
+    states = bp.detectSWs(model)
+    # durations = bp.get_state_lengths(states)
+    involvement = bp.get_involvement(states)
+
+    len_states = np.sum(states, axis=1) * model.params.dt / 1000
+
+    normalized_down_lengths = model.params.duration / 1000 - len_states
+    # to percent
+    normalized_down_lengths = (normalized_down_lengths /
+                               (model.params.duration / 1000) * 100)
+
+    filtered_involvement = scipy.ndimage.gaussian_filter1d(involvement, 2000)
+    peaks = scipy.signal.find_peaks(
+        filtered_involvement, height=0.1, distance=min_distance)[0]
+
+    peaks25 = filter_peaks(peaks, involvement, 0.50, 0.0)
+    peaks50 = filter_peaks(peaks, involvement, 0.75, 0.50)
+    peaks75 = filter_peaks(peaks, involvement, 1, 0.75)
+
+    return np.array(peaks25), np.array(peaks50 + peaks75)

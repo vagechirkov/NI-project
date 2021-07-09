@@ -140,3 +140,4 @@ connectivity/brainplot.py
 SCZ_sleep/brainplot.py
 *.csv
 *.gif
+*.fif
