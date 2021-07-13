@@ -43,8 +43,9 @@ def simulate_raw_eeg(aal2_atlas, cortex, model_data):
         node_data[i] = model_data[np.argsort(v), :]
         node_verts[i] = np.sort(v)
 
+    # Prepare ts
     data = np.vstack(node_data)
-    data = 1e-7 * data / data.max()  # scaled by 1e+06 to plot in µV
+    data = 1e-7 * data / data.max()  # scaled by 1e+07 to plot in µV
 
     # Create SourceEstimate object
     stc = mne.SourceEstimate(
