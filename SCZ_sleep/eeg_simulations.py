@@ -19,22 +19,40 @@ def simulate_raw_eeg(aal2_atlas, cortex, model_data):
     fwd_fname = op.join(meg_path, 'sample_audvis-meg-eeg-oct-6-fwd.fif')
     fwd = mne.read_forward_solution(fwd_fname)
 
-    lab_convert = convert_aal2_to_aparca2009()
+    vertices = [i['vertno'] for i in fwd['src']]
+    verts_aal2 = [[], []]
 
-    source_simulator = mne.simulation.SourceSimulator(
-        fwd['src'], tstep=0.0001)
+    aal2_cortex = aal2_atlas.loc[cortex, :].copy()
 
-    for region_id, region_name in lab_convert.items():
-        if region_name == '':
-            continue
-        label_name = region_name
-        label_tmp = mne.read_labels_from_annot(
-            subject, 'aparc.a2009s', subjects_dir=subjects_dir,
-            regexp=label_name, verbose=False)
-        label_tmp = label_tmp[0]
-        wf_tmp = model_data[region_id, :]
-        source_simulator.add_data(label_tmp, 1e-9 * wf_tmp, [[0, 0, 0]])
+    for hemi, hemi_n in zip([0, 1], ['L', "R"]):
+        fwd_mni = mne.vertex_to_mni(
+            vertices[hemi], hemis=hemi, subject='sample',
+            subjects_dir=subjects_dir)
+        for i in aal2_cortex[aal2_cortex['hemi'] == hemi_n].index:
+            node = aal2_cortex.loc[i, ['x.mni', 'y.mni',
+                                       'z.mni']].to_numpy(dtype=np.float64)
+            dist = np.linalg.norm(fwd_mni - node, ord=2, axis=1)
+            aal2_cortex.loc[i, ['vertex']] = vertices[hemi][np.argmin(dist)]
 
+        verts_aal2[hemi] = aal2_cortex.loc[aal2_cortex['hemi'] == hemi_n,
+                                           'vertex'].to_numpy(dtype=np.int32)
+
+    node_data = [[], []]
+    node_verts = [[], []]
+
+    for i, v in enumerate(verts_aal2):
+        node_data[i] = model_data[np.argsort(v), :]
+        node_verts[i] = np.sort(v)
+
+    # Prepare ts
+    data = np.vstack(node_data)
+    data -= np.outer(data.mean(axis=1), np.ones(data.shape[1]))
+    data = 1e-7 * data   #  / data.max()  # scaled by 1e+07 to plot in µV
+
+    # Create SourceEstimate object
+    stc = mne.SourceEstimate(
+        data, node_verts,
+        tmin=0, tstep=0.0001, subject='sample')
     raw_fname = op.join(meg_path, 'sample_audvis_raw.fif')
     info = mne.io.read_info(raw_fname)
     info.update(sfreq=10000., bads=[])
@@ -47,9 +65,10 @@ def simulate_raw_eeg(aal2_atlas, cortex, model_data):
     cov = mne.cov.make_ad_hoc_cov(info)
     cov['data'] *= (20. / snr) ** 2
 
-    raw = simulate_raw(info, source_simulator, forward=fwd, n_jobs=8)
+    raw = simulate_raw(info, stc, forward=fwd)
     # add_noise(raw, cov, iir_filter=[4, -4, 0.8], random_state=42)
-    return raw, source_simulator.get_stc()
+    return raw, stc
+
 
 
 def find_peaks(model, output, min_distance=1000):
@@ -168,3 +187,16 @@ def convert_aal2_to_aparca2009():
         78: 'S_temporal_inf-lh',  # 'Temporal_Inf_L'
         79: 'S_temporal_inf-rh',  # 'Temporal_Inf_R'
     }
+
+
+if __name__ == '__main__':
+    from neurolib.utils.loadData import Dataset
+    from neurolib.models.aln import ALNModel
+    ds = Dataset("gw")
+    # ds.Cmat = ds.Cmats[3]
+    # ds.Dmat = ds.Dmats[3]
+    model = ALNModel(Cmat=ds.Cmat, Dmat=ds.Dmat)
+    model.output_vars += ['seem', 'seev']
+    model.run(append=True)
+    
+    
