@@ -8,7 +8,7 @@ from mne.simulation import simulate_raw, add_noise
 from neurolib.utils import atlases
 
 
-def simulate_raw_eeg(aal2_atlas, cortex, model_data):
+def _simulate_raw_eeg(aal2_atlas, cortex, model_data):
     data_path = sample.data_path()
     subjects_dir = op.join(data_path, 'subjects')
     subject = 'sample'
@@ -65,7 +65,7 @@ def simulate_raw_eeg(aal2_atlas, cortex, model_data):
     cov = mne.cov.make_ad_hoc_cov(info)
     cov['data'] *= (20. / snr) ** 2
 
-    raw = simulate_raw(info, stc, forward=fwd)
+    raw = simulate_raw(info, stc, forward=fwd, n_jobs=8)
     # add_noise(raw, cov, iir_filter=[4, -4, 0.8], random_state=42)
     return raw, stc
 
@@ -104,99 +104,85 @@ def find_peaks(model, output, min_distance=1000):
     return np.array(peaks25), np.array(peaks50 + peaks75)
 
 
-def convert_aal2_to_aparca2009():
-    return {
-        0: 'G_postcentral-lh',  # 'Precentral_L'
-        1: 'G_postcentral-rh',  # 'Precentral_R'
-        2: 'G_front_sup-lh',  # 'Frontal_Sup_2_L'
-        3: 'G_front_sup-rh',  # 'Frontal_Sup_2_R'
-        4: 'G_front_middle-lh',  # 'Frontal_Mid_2_L'
-        5: 'G_front_middle-rh',  # 'Frontal_Mid_2_R'
-        6: 'G_front_inf-Opercular-lh',  # 'Frontal_Inf_Oper_L'
-        7: 'G_front_inf-Opercular-rh',  # 'Frontal_Inf_Oper_R'
-        8: 'G_front_inf-Triangul-lh',  # 'Frontal_Inf_Tri_L'
-        9: 'G_front_inf-Triangul-rh',  # 'Frontal_Inf_Tri_R'
-        10: 'G_front_inf-Orbital-lh',  # 'Frontal_Inf_Orb_2_L'
-        11: 'G_front_inf-Orbital-rh',  # 'Frontal_Inf_Orb_2_R'
-        12: '',  # 'Rolandic_Oper_L'
-        13: '',  # 'Rolandic_Oper_R'
-        14: '',  # 'Supp_Motor_Area_L'
-        15: '',  # 'Supp_Motor_Area_R'
-        16: 'S_orbital_med-olfact-lh',  # 'Olfactory_L'
-        17: 'S_orbital_med-olfact-rh',  # 'Olfactory_R'
-        18: 'S_front_sup-lh',  # 'Frontal_Sup_Medial_L'
-        19: 'S_front_sup-rh',  # 'Frontal_Sup_Medial_R'
-        20: '',  # 'Frontal_Med_Orb_L'
-        21: '',  # 'Frontal_Med_Orb_R'
-        22: '',  # 'Rectus_L'
-        23: '',  # 'Rectus_R'
-        24: 'S_orbital_med-olfact-lh',  # 'OFCmed_L'
-        25: 'S_orbital_med-olfact-rh',  # 'OFCmed_R'
-        26: '',  # 'OFCant_L'
-        27: '',  # 'OFCant_R'
-        28: '',  # 'OFCpost_L'
-        29: '',  # 'OFCpost_R'
-        30: 'S_orbital_lateral-lh',  # 'OFClat_L'
-        31: 'S_orbital_lateral-rh',  # 'OFClat_R'
-        32: 'G_insular_short-lh',  # 'Insula_L'
-        33: 'G_insular_short-rh',  # 'Insula_R'
-        34: 'G_cingul-Post-ventral-lh',  # 'Cingulate_Ant_L'
-        35: 'G_cingul-Post-ventral-rh',  # 'Cingulate_Ant_R'
-        36: '',  # 'Cingulate_Mid_L'
-        37: '',  # 'Cingulate_Mid_R'
-        38: 'G_cingul-Post-dorsal-lh',  # 'Cingulate_Post_L'
-        39: 'G_cingul-Post-dorsal-rh',  # 'Cingulate_Post_R'
-        40: 'S_calcarine-lh',  # 'Calcarine_L'
-        41: 'S_calcarine-rh',  # 'Calcarine_R'
-        42: 'G_cuneus-lh',  # 'Cuneus_L'
-        43: 'G_cuneus-rh',  # 'Cuneus_R'
-        44: 'G_oc-temp_med-Lingual-lh',  # 'Lingual_L'
-        45: 'G_oc-temp_med-Lingual-rh',  # 'Lingual_R'
-        46: 'G_occipital_sup-lh',  # 'Occipital_Sup_L'
-        47: 'G_occipital_sup-rh',  # 'Occipital_Sup_R'
-        48: 'G_occipital_middle-lh',  # 'Occipital_Mid_L'
-        49: 'G_occipital_middle-rh',  # 'Occipital_Mid_R'
-        50: '',  # 'Occipital_Inf_L'
-        51: '',  # 'Occipital_Inf_R'
-        52: 'G_oc-temp_lat-fusifor-lh',  # 'Fusiform_L'
-        53: 'G_oc-temp_lat-fusifor-rh',  # 'Fusiform_R'
-        54: 'S_postcentral-lh',  # 'Postcentral_L'
-        55: 'S_postcentral-rh',  # 'Postcentral_R'
-        56: 'S_precentral-sup-part-lh',  # 'Parietal_Sup_L'
-        57: 'S_precentral-sup-part-rh',  # 'Parietal_Sup_R'
-        58: 'S_precentral-inf-part-lh',  # 'Parietal_Inf_L'
-        59: 'S_precentral-inf-part-rh',  # 'Parietal_Inf_R'
-        60: 'G_pariet_inf-Supramar-lh',  # 'SupraMarginal_L'
-        61: 'G_pariet_inf-Supramar-rh',  # 'SupraMarginal_R'
-        62: 'G_pariet_inf-Angular-lh',  # 'Angular_L'
-        63: 'G_pariet_inf-Angular-rh',  # 'Angular_R'
-        64: 'G_precuneus-lh',  # 'Precuneus_L'
-        65: 'G_precuneus-rh',  # 'Precuneus_R'
-        66: 'G_and_S_paracentral-lh',  # 'Paracentral_Lobule_L'
-        67: 'G_and_S_paracentral-rh',  # 'Paracentral_Lobule_R'
-        68: 'G_temp_sup-G_T_transv-lh',  # 'Heschl_L'
-        69: 'G_temp_sup-G_T_transv-rh',  # 'Heschl_R'
-        70: 'S_temporal_sup-lh',  # 'Temporal_Sup_L'
-        71: 'S_temporal_sup-rh',  # 'Temporal_Sup_R'
-        72: 'G_temp_sup-Plan_polar-lh',  # 'Temporal_Pole_Sup_L'
-        73: 'G_temp_sup-Plan_polar-rh',  # 'Temporal_Pole_Sup_R'
-        74: 'G_temporal_middle-lh',  # 'Temporal_Mid_L'
-        75: 'G_temporal_middle-rh',  # 'Temporal_Mid_R'
-        76: 'Pole_temporal-lh',  # 'Temporal_Pole_Mid_L'
-        77: 'Pole_temporal-rh',  # 'Temporal_Pole_Mid_R'
-        78: 'S_temporal_inf-lh',  # 'Temporal_Inf_L'
-        79: 'S_temporal_inf-rh',  # 'Temporal_Inf_R'
-    }
+def simulate_raw_eeg(fsave="eeg_simulation.fif", minutes=1):
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    import seaborn as sns
+    import scipy
 
+    import mne
 
-if __name__ == '__main__':
+    # NB: add more subjects in the data folder in neurolib package
     from neurolib.utils.loadData import Dataset
     from neurolib.models.aln import ALNModel
+
+    from neurolib.utils import functions as func
+
+    import brainplot as bp
+
+    from neurolib.utils import atlases
+    from nilearn import plotting  
+    atlas = atlases.AutomatedAnatomicalParcellation2()
+    # AAL2 atlas is taken from here: https://github.com/cwatson/brainGraph
+    aal2_atlas = pd.read_csv("SCZ_sleep/aal2_coords.csv")
+    coords = aal2_atlas.loc[atlas.cortex, ["x.mni", "y.mni", "z.mni"]].to_numpy()
+
     ds = Dataset("gw")
     # ds.Cmat = ds.Cmats[3]
     # ds.Dmat = ds.Dmats[3]
     model = ALNModel(Cmat=ds.Cmat, Dmat=ds.Dmat)
-    model.output_vars += ['seem', 'seev']
-    model.run(append=True)
-    
-    
+
+    # add custom parameter for downsampling results
+    # 10 ms sampling steps for saving data, should be multiple of dt
+    model.params['save_dt'] = 10.0
+    model.params["tauA"] = 600.0
+    model.params["sigma_ou"] = 0.0
+    model.params["b"] = 20.0
+
+    model.params["Ke_gl"] = 300.0
+    model.params["mue_ext_mean"] = 0.2
+    model.params["mui_ext_mean"] = 0.1
+
+    # Sleep model from newest evolution October 2020
+    model.params["mue_ext_mean"] = 3.3202829454334535
+    model.params["mui_ext_mean"] = 3.682451894176651
+    model.params["b"] = 3.2021806735984186
+    model.params["tauA"] = 4765.3385276559875
+    model.params["sigma_ou"] = 0.36802952978628106
+    model.params["Ke_gl"] = 265.48075753153
+
+    model.params['dt'] = 0.1
+    model.params['duration'] = minutes * 60 * 1000  #ms
+    model.params["signalV"] = 80.0
+
+    model.output_vars += ['seem', 'seev', 'mufe']
+    # model.run(bold=False, append=True)
+
+    # local_peaks, global_peaks = find_peaks(model, model.output)
+    local_peaks = np.load("SCZ_sleep/simultaion_dataset/local_peaks.npy")
+    global_peaks = np.load("SCZ_sleep/simultaion_dataset/global_peaks.npy")
+    aln_data = np.load("SCZ_sleep/simultaion_dataset/aln_model.npy")
+
+    sims = []
+    for part in np.split(aln_data, minutes, axis=1):
+        raw_sim, _ = _simulate_raw_eeg(aal2_atlas, atlas.cortex, part)
+        sims.append(raw_sim)
+
+    raw = mne.concatenate_raws(sims)
+
+    local_peaks_annot = mne.Annotations(onset=(local_peaks)/10000,  # in seconds
+                                        duration=[0.001]*len(local_peaks),  # in seconds, too
+                                        description=['LP']*len(local_peaks))
+    global_peaks_annot = mne.Annotations(onset=(global_peaks)/10000,  # in seconds
+                                         duration=[0.001]*len(global_peaks),  # in seconds, too
+                                         description=['GP']*len(global_peaks))
+    peaks_annot = local_peaks_annot + global_peaks_annot
+    raw.set_annotations(peaks_annot)
+    raw = raw.resample(sfreq=200.)
+    raw.pick_types(eeg=True)
+    raw.save(fsave, overwrite=True)
+
+
+if __name__ == '__main__':
+    simulate_raw_eeg("/SCZ_sleep/simultaion_dataset/eeg_simulation.fif", 10)
